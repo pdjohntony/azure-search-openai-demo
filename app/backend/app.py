@@ -11,6 +11,7 @@ from approaches.readretrieveread import ReadRetrieveReadApproach
 from approaches.readdecomposeask import ReadDecomposeAsk
 from approaches.chatreadretrieveread import ChatReadRetrieveReadApproach
 from azure.storage.blob import BlobServiceClient
+from azure.core.credentials import AzureKeyCredential
 
 # Replace these with your own values, either in environment variables or directly here
 AZURE_STORAGE_ACCOUNT = os.environ.get("AZURE_STORAGE_ACCOUNT") or "mystorageaccount"
@@ -20,6 +21,10 @@ AZURE_SEARCH_INDEX = os.environ.get("AZURE_SEARCH_INDEX") or "gptkbindex"
 AZURE_OPENAI_SERVICE = os.environ.get("AZURE_OPENAI_SERVICE") or "myopenai"
 AZURE_OPENAI_GPT_DEPLOYMENT = os.environ.get("AZURE_OPENAI_GPT_DEPLOYMENT") or "davinci"
 AZURE_OPENAI_CHATGPT_DEPLOYMENT = os.environ.get("AZURE_OPENAI_CHATGPT_DEPLOYMENT") or "chat"
+
+AZURE_SEARCH_KEY = os.environ.get("AZURE_SEARCH_KEY")
+AZURE_STORAGE_KEY = os.environ.get("AZURE_STORAGE_KEY")
+AZURE_OPENAI_KEY = os.environ.get("AZURE_OPENAI_KEY")
 
 KB_FIELDS_CONTENT = os.environ.get("KB_FIELDS_CONTENT") or "content"
 KB_FIELDS_CATEGORY = os.environ.get("KB_FIELDS_CATEGORY") or "category"
@@ -31,24 +36,35 @@ KB_FIELDS_SOURCEPAGE = os.environ.get("KB_FIELDS_SOURCEPAGE") or "sourcepage"
 # If you encounter a blocking error during a DefaultAzureCredntial resolution, you can exclude the problematic credential by using a parameter (ex. exclude_shared_token_cache_credential=True)
 azure_credential = DefaultAzureCredential()
 
+# Use the Azure keys if provided, otherwise use DefaultAzureCredential
+if AZURE_SEARCH_KEY:
+    AZURE_SEARCH_CREDENTIAL = AzureKeyCredential(AZURE_SEARCH_KEY)
+else:
+    AZURE_SEARCH_CREDENTIAL = azure_credential
+if AZURE_STORAGE_KEY:
+    AZURE_STORAGE_CREDENTIAL = AZURE_STORAGE_KEY
+else:
+    AZURE_STORAGE_CREDENTIAL = azure_credential
+if AZURE_OPENAI_KEY:
+    openai.api_key = AZURE_OPENAI_KEY
+else:
+    openai.api_type = "azure_ad"
+    openai_token = azure_credential.get_token("https://cognitiveservices.azure.com/.default")
+    openai.api_key = openai_token.token
+
 # Used by the OpenAI SDK
 openai.api_type = "azure"
 openai.api_base = f"https://{AZURE_OPENAI_SERVICE}.openai.azure.com"
 openai.api_version = "2022-12-01"
 
-# Comment these two lines out if using keys, set your API key in the OPENAI_API_KEY environment variable instead
-openai.api_type = "azure_ad"
-openai_token = azure_credential.get_token("https://cognitiveservices.azure.com/.default")
-openai.api_key = openai_token.token
-
 # Set up clients for Cognitive Search and Storage
 search_client = SearchClient(
     endpoint=f"https://{AZURE_SEARCH_SERVICE}.search.windows.net",
     index_name=AZURE_SEARCH_INDEX,
-    credential=azure_credential)
+    credential=AZURE_SEARCH_CREDENTIAL)
 blob_client = BlobServiceClient(
     account_url=f"https://{AZURE_STORAGE_ACCOUNT}.blob.core.windows.net", 
-    credential=azure_credential)
+    credential=AZURE_STORAGE_CREDENTIAL)
 blob_container = blob_client.get_container_client(AZURE_STORAGE_CONTAINER)
 
 # Various approaches to integrate GPT and external knowledge, most applications will use a single one of these patterns
@@ -111,9 +127,10 @@ def chat():
 
 def ensure_openai_token():
     global openai_token
-    if openai_token.expires_on < int(time.time()) - 60:
-        openai_token = azure_credential.get_token("https://cognitiveservices.azure.com/.default")
-        openai.api_key = openai_token.token
+    if not AZURE_OPENAI_KEY:
+        if openai_token.expires_on < int(time.time()) - 60:
+            openai_token = azure_credential.get_token("https://cognitiveservices.azure.com/.default")
+            openai.api_key = openai_token.token
     
 if __name__ == "__main__":
     app.run()
