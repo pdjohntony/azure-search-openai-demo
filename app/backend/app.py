@@ -45,17 +45,18 @@ if AZURE_STORAGE_KEY:
     AZURE_STORAGE_CREDENTIAL = AZURE_STORAGE_KEY
 else:
     AZURE_STORAGE_CREDENTIAL = azure_credential
+
+# Used by the OpenAI SDK
+openai.api_type = "azure"
+openai.api_base = f"https://{AZURE_OPENAI_SERVICE}.openai.azure.com"
+openai.api_version = "2022-12-01"
+
 if AZURE_OPENAI_KEY:
     openai.api_key = AZURE_OPENAI_KEY
 else:
     openai.api_type = "azure_ad"
     openai_token = azure_credential.get_token("https://cognitiveservices.azure.com/.default")
     openai.api_key = openai_token.token
-
-# Used by the OpenAI SDK
-openai.api_type = "azure"
-openai.api_base = f"https://{AZURE_OPENAI_SERVICE}.openai.azure.com"
-openai.api_version = "2022-12-01"
 
 # Set up clients for Cognitive Search and Storage
 search_client = SearchClient(
