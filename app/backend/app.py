@@ -141,4 +141,11 @@ def ensure_openai_token():
             openai.api_key = openai_token.token
     
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(module)s %(message)s")
+    logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING) # change logging level for search client
+    logging.info("===========================================")
+    logging.info("")
+    logging.info("              BACKEND STARTED              ")
+    logging.info("")
+    logging.info("===========================================")
     app.run()
