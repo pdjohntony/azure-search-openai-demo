@@ -79,6 +79,10 @@ chat_approaches = {
     "rrr": ChatReadRetrieveReadApproach(search_client, AZURE_OPENAI_CHATGPT_DEPLOYMENT, AZURE_OPENAI_GPT_DEPLOYMENT, KB_FIELDS_SOURCEPAGE, KB_FIELDS_CONTENT)
 }
 
+# Add MIME types for JavaScript and CSS files to prevent Flask from serving them as text/plain on Windows
+mimetypes.add_type('application/javascript', '.js')
+mimetypes.add_type('text/css', '.css')
+
 app = Flask(__name__)
 
 @app.route("/", defaults={"path": "index.html"})
