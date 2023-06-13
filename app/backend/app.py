@@ -2,6 +2,7 @@ import os
 import mimetypes
 import time
 import logging
+import logging.handlers
 import openai
 from flask import Flask, request, jsonify
 from azure.identity import DefaultAzureCredential
@@ -29,6 +30,39 @@ AZURE_OPENAI_KEY = os.environ.get("AZURE_OPENAI_KEY")
 KB_FIELDS_CONTENT = os.environ.get("KB_FIELDS_CONTENT") or "content"
 KB_FIELDS_CATEGORY = os.environ.get("KB_FIELDS_CATEGORY") or "category"
 KB_FIELDS_SOURCEPAGE = os.environ.get("KB_FIELDS_SOURCEPAGE") or "sourcepage"
+
+# LOGGING
+LOG_FILE = "app.log"
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+# Console handler with INFO level
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_formatter = logging.Formatter('%(asctime)s - %(message)s')
+console_handler.setFormatter(console_formatter)
+logger.addHandler(console_handler)
+# File handler with DEBUG level
+file_handler = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=10*1024*1024, backupCount=4, encoding='utf8') # 10 Mb, 0 backup files
+file_handler.setLevel(logging.DEBUG)
+file_formatter = logging.Formatter('[{asctime}] [{module}] [{levelname:<7}]: {message}', style='{')
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
+# http.client.HTTPConnection.debuglevel = 0
+logging.getLogger("requests").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+# set openai util to warning
+
+logger.debug("""
+
+ #       ####   ####      ####  #####   ##   #####  ##### 
+ #      #    # #    #    #        #    #  #  #    #   #   
+ #      #    # #          ####    #   #    # #    #   #   
+ #      #    # #  ###         #   #   ###### #####    #   
+ #      #    # #    #    #    #   #   #    # #   #    #   
+ ######  ####   ####      ####    #   #    # #    #   #   
+""")
 
 # Use the current user identity to authenticate with Azure OpenAI, Cognitive Search and Blob Storage (no secrets needed, 
 # just use 'az login' locally, and managed identity when deployed on Azure). If you need to use keys, use separate AzureKeyCredential instances with the 
@@ -119,8 +153,9 @@ def ask():
 @app.route("/chat", methods=["POST"])
 def chat():
     ensure_openai_token()
-    approach = request.json["approach"]
     try:
+        logger.info(f"INCOMING /chat Request body: {request.get_data()}")
+        approach = request.json["approach"]
         impl = chat_approaches.get(approach)
         if not impl:
             return jsonify({"error": "unknown approach"}), 400
@@ -141,11 +176,4 @@ def ensure_openai_token():
             openai.api_key = openai_token.token
     
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(module)s %(message)s")
-    logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING) # change logging level for search client
-    logging.info("===========================================")
-    logging.info("")
-    logging.info("              BACKEND STARTED              ")
-    logging.info("")
-    logging.info("===========================================")
     app.run()
