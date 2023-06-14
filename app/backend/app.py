@@ -13,6 +13,7 @@ from approaches.readdecomposeask import ReadDecomposeAsk
 from approaches.chatreadretrieveread import ChatReadRetrieveReadApproach
 from azure.storage.blob import BlobServiceClient
 from azure.core.credentials import AzureKeyCredential
+from db import cosmosdb_client
 
 # Replace these with your own values, either in environment variables or directly here
 AZURE_STORAGE_ACCOUNT = os.environ.get("AZURE_STORAGE_ACCOUNT") or "mystorageaccount"
@@ -30,6 +31,11 @@ AZURE_OPENAI_KEY = os.environ.get("AZURE_OPENAI_KEY")
 KB_FIELDS_CONTENT = os.environ.get("KB_FIELDS_CONTENT") or "content"
 KB_FIELDS_CATEGORY = os.environ.get("KB_FIELDS_CATEGORY") or "category"
 KB_FIELDS_SOURCEPAGE = os.environ.get("KB_FIELDS_SOURCEPAGE") or "sourcepage"
+
+AZURE_DB_URL = os.environ.get("AZURE_DB_URL")
+AZURE_DB_KEY = os.environ.get("AZURE_DB_KEY")
+AZURE_DB_NAME = os.environ.get("AZURE_DB_NAME")
+AZURE_DB_CONTAINER = os.environ.get("AZURE_DB_CONTAINER")
 
 # LOGGING
 LOG_FILE = "app.log"
@@ -114,6 +120,8 @@ chat_approaches = {
     "rrr": ChatReadRetrieveReadApproach(search_client, AZURE_OPENAI_CHATGPT_DEPLOYMENT, AZURE_OPENAI_GPT_DEPLOYMENT, KB_FIELDS_SOURCEPAGE, KB_FIELDS_CONTENT)
 }
 
+db = cosmosdb_client(AZURE_DB_URL, AZURE_DB_KEY, AZURE_DB_NAME, AZURE_DB_CONTAINER)
+
 # Add MIME types for JavaScript and CSS files to prevent Flask from serving them as text/plain on Windows
 mimetypes.add_type('application/javascript', '.js')
 mimetypes.add_type('text/css', '.css')
@@ -155,14 +163,24 @@ def chat():
     ensure_openai_token()
     try:
         logger.info(f"INCOMING /chat Request body: {request.get_data()}")
+        user_email = request.json.get("user_email")
         approach = request.json["approach"]
         impl = chat_approaches.get(approach)
         if not impl:
             return jsonify({"error": "unknown approach"}), 400
-        r = impl.run(request.json["history"], request.json.get("overrides") or {})
+        # if user_email is provided, query the DB for recent history and append it to the request history
+        if user_email != None and len(request.json["history"]) <= 1:
+            logger.debug(f"Previous chat history not present in request, querying recent history from DB")
+            db_chat_history = db.select_recent(user_email=user_email, last_minutes=10)
+            history = db_chat_history + request.json["history"]
+        else:
+            history = request.json["history"]
+        r = impl.run(history, request.json.get("overrides") or {})
         resp = r
-        resp["history"] = request.json["history"] # return the original history
-        resp["history"][-1]["bot"] = r["answer"] # add the bot's answer to the history
+        resp["history"] = history # return the original history
+        history[-1]["bot"] = r["answer"] # add the bot's answer to the history
+        if user_email: db.insert(user_email=user_email, user_query=request.json["history"][-1]["user"], bot_response=r["answer"])
+        logger.info(f"OUTGOING /chat Response body: {resp}")
         return jsonify(resp)
     except Exception as e:
         logging.exception("Exception in /chat")
