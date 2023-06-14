@@ -3,6 +3,7 @@ from azure.search.documents import SearchClient
 from azure.search.documents.models import QueryType
 from approaches.approach import Approach
 from text import nonewlines
+import logging
 
 # Simple retrieve-then-read implementation, using the Cognitive Search and OpenAI APIs directly. It first retrieves
 # top documents from search, then constructs a prompt with them, and then uses OpenAI to generate an completion 
@@ -57,6 +58,7 @@ Search query:
 
         # STEP 1: Generate an optimized keyword search query based on the chat history and the last question
         prompt = self.query_prompt_template.format(chat_history=self.get_chat_history_as_text(history, include_last_turn=False), question=history[-1]["user"])
+        logging.debug("Generating keyword search query with prompt: " + prompt)
         completion = openai.Completion.create(
             engine=self.gpt_deployment, 
             prompt=prompt, 
@@ -65,8 +67,10 @@ Search query:
             n=1, 
             stop=["\n"])
         q = completion.choices[0].text
+        logging.debug("Generated keyword search query: " + q)
 
         # STEP 2: Retrieve relevant documents from the search index with the GPT optimized query
+        logging.debug("Retrieving documents from search index with query: " + q)
         if overrides.get("semantic_ranker"):
             r = self.search_client.search(q, 
                                           filter=filter,
@@ -96,6 +100,7 @@ Search query:
             prompt = prompt_override.format(sources=content, chat_history=self.get_chat_history_as_text(history), follow_up_questions_prompt=follow_up_questions_prompt)
 
         # STEP 3: Generate a contextual and content specific answer using the search results and chat history
+        logging.debug("Generating answer with prompt: " + prompt)
         completion = openai.Completion.create(
             engine=self.chatgpt_deployment, 
             prompt=prompt, 
