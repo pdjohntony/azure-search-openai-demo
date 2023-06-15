@@ -37,6 +37,8 @@ AZURE_DB_KEY = os.environ.get("AZURE_DB_KEY")
 AZURE_DB_NAME = os.environ.get("AZURE_DB_NAME")
 AZURE_DB_CONTAINER = os.environ.get("AZURE_DB_CONTAINER")
 
+CHAT_HISTORY_DB_MIN = os.environ.get("CHAT_HISTORY_DB_MIN") or "5"
+
 # LOGGING
 LOG_FILE = "app.log"
 logger = logging.getLogger()
@@ -171,7 +173,7 @@ def chat():
         # if user_email is provided, query the DB for recent history and append it to the request history
         if user_email != None and len(request.json["history"]) <= 1:
             logger.debug(f"Previous chat history not present in request, querying recent history from DB")
-            db_chat_history = db.select_recent(user_email=user_email, last_minutes=10)
+            db_chat_history = db.select_recent(user_email=user_email, last_minutes=int(CHAT_HISTORY_DB_MIN))
             history = db_chat_history + request.json["history"]
         else:
             history = request.json["history"]
