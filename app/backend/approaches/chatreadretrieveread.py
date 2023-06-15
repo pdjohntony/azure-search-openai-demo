@@ -13,7 +13,7 @@ class ChatReadRetrieveReadApproach(Approach):
 You MUST answer ONLY with the information from the sources listed below. Answers MUST come from the sources and ONLY the sources. If there isn't enough information below you can ask a simple follow up question if that will help. If not politely respond by saying you don't have the information to answer that question. Do NOT generate answers unless they DIRECTLY come from the sources below. 
 Questions about ADP refer to the time entry system and you have information in your sources.
 If asking a clarifying question to the user would help, ask the question.
-For tabular information return it as an html table. Do not return markdown format. Tables should be formatted nicely with cell borders.
+For tabular information return it as markdown format Do not return as an html table.
 Each source has a name followed by colon and the actual information, always include the source name for each fact you use in the response. Use square brakets to reference the source, e.g. [info1.txt]. Don't combine sources, list each source separately, e.g. [info1.txt][info2.pdf].
 {follow_up_questions_prompt}
 {injected_prompt}
