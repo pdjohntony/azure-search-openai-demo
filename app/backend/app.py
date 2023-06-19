@@ -4,6 +4,8 @@ import time
 import logging
 import logging.handlers
 import openai
+import re
+from urllib.parse import quote
 from flask import Flask, request, jsonify
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
@@ -16,6 +18,7 @@ from azure.core.credentials import AzureKeyCredential
 from db import cosmosdb_client
 
 # Replace these with your own values, either in environment variables or directly here
+BACKEND_URI = os.environ.get("BACKEND_URI") or "http://localhost:5000"
 AZURE_STORAGE_ACCOUNT = os.environ.get("AZURE_STORAGE_ACCOUNT") or "mystorageaccount"
 AZURE_STORAGE_CONTAINER = os.environ.get("AZURE_STORAGE_CONTAINER") or "content"
 AZURE_SEARCH_SERVICE = os.environ.get("AZURE_SEARCH_SERVICE") or "gptkb"
@@ -128,6 +131,19 @@ db = cosmosdb_client(AZURE_DB_URL, AZURE_DB_KEY, AZURE_DB_NAME, AZURE_DB_CONTAIN
 mimetypes.add_type('application/javascript', '.js')
 mimetypes.add_type('text/css', '.css')
 
+def convert_to_md_link(text):
+    # Convert [filename] inside a string to [filename](link) for markdown rendering
+    try:
+        pattern = re.compile(r'\[(.*?)\]')
+        matches = pattern.findall(text)
+        for match in matches:
+            link = quote(match)
+            text = text.replace(f'[{match}]', f'[{match}]({BACKEND_URI}/content/{link})')
+        return text
+    except Exception as e:
+        logger.error(f"Error converting text to markdown: {e}")
+        return text
+
 app = Flask(__name__)
 
 @app.route("/", defaults={"path": "index.html"})
@@ -182,6 +198,7 @@ def chat():
         resp["history"] = history # return the original history
         history[-1]["bot"] = r["answer"] # add the bot's answer to the history
         if user_email: db.insert(user_email=user_email, user_query=request.json["history"][-1]["user"], bot_response=r["answer"])
+        resp["answer"] = convert_to_md_link(resp["answer"])
         logger.info(f"OUTGOING /chat Response body: {resp}")
         return jsonify(resp)
     except Exception as e:
